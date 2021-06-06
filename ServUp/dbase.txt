@@ -1,0 +1,3 @@
+hello $ hello human! 
+what is your name $ My name is ROBO-2342!
+what are you doing $ i am answering stoopid questions
