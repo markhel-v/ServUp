@@ -109,16 +109,36 @@ void processMessage(UWEBSOCK* ws, std::string_view message, int latest_id, const
 		if (user_id == 1)
 		{
 
-			string user_msg = parsed[MESSAGE];
+
 			json response;
 			response[COMMAND] = PRIVATE_MSG;
-			response[USER_FROM] = data->user_id;
+			response[USER_FROM] = 1;
 			response[MESSAGE] = chat_bot.response(parsed[MESSAGE]);
 
-			ws->publish("user_id" + to_string(user_id), response.dump());
+			ws->publish("user_id" + to_string(data->user_id), response.dump());
 			return;
 
 		}
+
+		if (user_id < 10 || user_id >= latest_id) {
+			json response;
+			response[COMMAND] = PRIVATE_MSG;
+			response[USER_FROM] = 0; // zero id is server messages may be?
+			response[MESSAGE] = "Error, there is no user with ID = " + to_string(user_id);
+			ws->publish("user_id" + to_string(data->user_id), response.dump()); // HW 4
+			return;
+		}
+
+
+		string user_msg = parsed[MESSAGE];
+		json response; //   { "command": "private_msg", "user_from" : 14, "message" : "Привет, двенатсатй!" }
+		response[COMMAND] = PRIVATE_MSG;
+		response[USER_FROM] = data->user_id;
+		response[MESSAGE] = user_msg;
+		ws->publish("user_id" + to_string(user_id), response.dump());
+
+
+
 
 		if (command == SET_NAME) {
 			string user_name = parsed[NAME];
@@ -132,12 +152,6 @@ void processMessage(UWEBSOCK* ws, std::string_view message, int latest_id, const
 
 			data->name = parsed[NAME];
 		}
-		string user_msg = parsed[MESSAGE];
-		json response; //   { "command": "private_msg", "user_from" : 14, "message" : "Привет, двенатсатй!" }
-		response[COMMAND] = PRIVATE_MSG;
-		response[USER_FROM] = data->user_id;
-		response[MESSAGE] = user_msg;
-		ws->publish("user_id" + to_string(user_id), response.dump());
 
 
 	}
