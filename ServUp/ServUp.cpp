@@ -150,7 +150,7 @@ int main()
 	int latest_id = 10;
 	unsigned n_clients = 0;
 	uWS::App().ws<PerSocketData>("/*", {
-			.idleTimeout = 9999,
+			.idleTimeout = 1024,
 
 			.open = [&](auto* ws) {
 
