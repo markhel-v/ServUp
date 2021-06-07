@@ -67,13 +67,11 @@ void processMessage(UWEBSOCK* ws, std::string_view message, map<int, PerSocketDa
 		else if (users.find(user_id) != users.end()) {
 			response[COMMAND] = PRIVATE_MSG;
 			response[USER_FROM] = data->user_id;
-			if (data->name != "NULL") response[NAME] = data->name;
+		    response[NAME] = data->name;
 			response[MESSAGE] = user_msg;
 			ws->publish("user_id" + to_string(user_id), response.dump());
 		}
-
-
-		else {
+        	else {
 			cout << "Error! There is no user with ID = " << user_id << "!" << endl;
 			response[COMMAND] = NOTIFICATION;
 			response[USER_FROM] = 0;
@@ -102,21 +100,30 @@ void processMessage(UWEBSOCK* ws, std::string_view message, map<int, PerSocketDa
 }
 int main()
 {
-	PerSocketData bot{ 1, BOT };
-	PerSocketData server{ 0, SERVER };
+	PerSocketData bot = { 1, BOT };
+	PerSocketData server  = { 0, SERVER };
 
 	atomic_ulong  latest_id = 10;
-	unsigned n_clients = 0;
-
-	vector<thread*> threads(thread::hardware_concurrency());
+	atomic_int  n_clients = 0;
+	
+	vector<thread*> threads(1); // args threads -->  thread::hardware_concurrency()
 
 	transform(threads.begin(), threads.end(), threads.begin(), [&](auto* thr) {
 		return new thread([&]() {
-			/* ws->getUserData returns one of these */
+			
+        uWS::App().ws<PerSocketData>("/*", {          // /* ws->getUserData returns one of these */
+				/* Settings */
+				.compression = uWS::SHARED_COMPRESSOR,
+				.maxPayloadLength = 16 * 1024 * 1024,
+				.idleTimeout =  1024,
+				.maxBackpressure = 1 * 1024 * 1024,
+				.closeOnBackpressureLimit = false,
+				.resetIdleTimeoutOnSend = false,
+				.sendPingsAutomatically = true,
 
-			uWS::App().ws<PerSocketData>("/*", {
-					.idleTimeout = 9999,
+				/* Handlers */
 
+					.upgrade = nullptr,
 					.open = [&](auto* ws) {
 					   PerSocketData* data = ws->getUserData();
 					   data->user_id = latest_id++;
@@ -130,7 +137,7 @@ int main()
 							   ws->send(status(entry.second, true), uWS::OpCode::TEXT);
 						   }
 
-						   activeUsers[data->user_id] = data; // адд B карту юзкра
+						   activeUsers[data->user_id] = data;        //   add in map users
 
 							   },
 					.message = [&](auto* ws,  std::string_view message, uWS::OpCode opCode) {
@@ -144,14 +151,14 @@ int main()
 					 PerSocketData* data = ws->getUserData();
 						cout << "closed User id: " << data->user_id << "\n";
 
-					   ws->publish(BROADCAST, status(data, false));  // отключился
-					   activeUsers.erase(data->user_id); // удаление их карты юзера
+					   ws->publish(BROADCAST, status(data, false));  //   offline status
+					   activeUsers.erase(data->user_id); // delete user from map
 					   --n_clients;
 							   }
 				}).listen(9001, [](auto* listen_socket) {
 								   if (listen_socket) {
-									   cout << "Listening on port " << 9001 << "Chat-bot entered the chat! (User № 1) " << endl;
-									   cout << "Chat-bot entered the chat! (User № 1) " << endl;
+									   cout << "Thread " << std::this_thread::get_id() << " listening on port " << 9001 << endl;
+									   cout << "Chat-bot entered the chat! (User id: 1) " << endl;
 									   greeting();
 								   }
 								   else { cout << "Server failed to start :( " << endl; }
