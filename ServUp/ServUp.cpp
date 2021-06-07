@@ -1,7 +1,8 @@
- 
+
 #include <nlohmann/json.hpp>
 #include <uwebsockets/App.h>
 #include "ChatBot.h"
+#include <thread>
 
 
 using namespace std;
@@ -43,20 +44,20 @@ string status(PerSocketData* data, bool online) {
 	return request.dump();
 }
 
-void processMessage(UWEBSOCK* ws, std::string_view message, int latest_id, map<int, PerSocketData*>& users, uWS::OpCode opCode) {
+void processMessage(UWEBSOCK* ws, std::string_view message, map<int, PerSocketData*>& users, uWS::OpCode opCode) {
 	PerSocketData* data = ws->getUserData();
 
 	json parsed = json::parse(message);
-    json response;
+	json response;
 	string command = parsed[COMMAND];
-	
+
 	if (command == PRIVATE_MSG) {
 		int user_id = parsed[USER_ID];
 		string user_msg = parsed[MESSAGE];
 
 
 		if (user_id == 1) {
-			
+
 			response[COMMAND] = PRIVATE_MSG;
 			response[USER_FROM] = user_id;
 			response[NAME] = BOT;
@@ -87,7 +88,7 @@ void processMessage(UWEBSOCK* ws, std::string_view message, int latest_id, map<i
 		if (pos == -1 && user_name.length() <= 255) {
 			data->name = user_name;
 			cout << "User № " << data->user_id << " set his name to " << data->name << endl;
-		    ws->publish(BROADCAST, status(data, false));
+			ws->publish(BROADCAST, status(data, false));
 		}
 		else {
 			cout << "This name is not allowed!" << endl;
@@ -101,53 +102,72 @@ void processMessage(UWEBSOCK* ws, std::string_view message, int latest_id, map<i
 }
 int main()
 {
-	/* ws->getUserData returns one of these */
-	PerSocketData bot { 1, BOT };
-	PerSocketData server { 0, SERVER };
+	PerSocketData bot{ 1, BOT };
+	PerSocketData server{ 0, SERVER };
 
-	unsigned long latest_id = 10;
+	atomic_ulong  latest_id = 10;
 	unsigned n_clients = 0;
-	uWS::App().ws<PerSocketData>("/*", {
-			.idleTimeout = 9999,
 
-			.open = [&](auto* ws) {
-      		   PerSocketData* data = ws->getUserData();
-			   data->user_id = latest_id++;
-			   cout << "User id:"<< data->user_id << " connected\n";
-			   cout << "Total users connected  " << ++n_clients << "\n";
+	vector<thread*> threads(thread::hardware_concurrency());
 
-				   ws->publish(BROADCAST, status(data, true)); // Bcем сообщаем что он подкл
-				   ws->subscribe(BROADCAST);
-				   ws->subscribe("user_id" + to_string(data->user_id));
-				   for (auto entry : activeUsers) {
-					   ws->send(status(entry.second, true), uWS::OpCode::TEXT);
-				   }
+	transform(threads.begin(), threads.end(), threads.begin(), [&](auto* thr) {
+		return new thread([&]() {
+			/* ws->getUserData returns one of these */
 
-				   activeUsers[data->user_id] = data; // адд B карту юзкра
+			uWS::App().ws<PerSocketData>("/*", {
+					.idleTimeout = 9999,
 
-					   },
-			.message = [&](auto* ws,  std::string_view message, uWS::OpCode opCode) {
-			PerSocketData* data = ws->getUserData();
-			cout << "Message from N " << data->user_id << ": " << message << endl;
-			processMessage(ws,message,latest_id, activeUsers, opCode);
+					.open = [&](auto* ws) {
+					   PerSocketData* data = ws->getUserData();
+					   data->user_id = latest_id++;
+					   cout << "User id:" << data->user_id << " connected\n";
+					   cout << "Total users connected  " << ++n_clients << "\n";
 
-					   },
-
-			.close = [&](auto* ws, int /*code*/, std::string_view /*message*/) {
-			 PerSocketData* data = ws->getUserData();
-				cout << "closed User id: " <<data->user_id << "\n";
-			 
-			   ws->publish(BROADCAST, status(data, false));  // отключился
-			   activeUsers.erase(data->user_id); // удаление их карты юзера
-			   --n_clients;
-					   }
-		}).listen(9001, [](auto* listen_socket) {
-						   if (listen_socket) {
-							   std::cout << "Listening on port " << 9001 << std::endl;
-							   cout << "Chat-bot entered the chat! (User № 1) " << endl;
-							   greeting();
+						   ws->publish(BROADCAST, status(data, true)); // Bcем сообщаем что он подкл
+						   ws->subscribe(BROADCAST);
+						   ws->subscribe("user_id" + to_string(data->user_id));
+						   for (auto entry : activeUsers) {
+							   ws->send(status(entry.second, true), uWS::OpCode::TEXT);
 						   }
-			}).run();
+
+						   activeUsers[data->user_id] = data; // адд B карту юзкра
+
+							   },
+					.message = [&](auto* ws,  std::string_view message, uWS::OpCode opCode) {
+					PerSocketData* data = ws->getUserData();
+					cout << "Message from N " << data->user_id << ": " << message << endl;
+					processMessage(ws,message, activeUsers, opCode);
+
+							   },
+
+					.close = [&](auto* ws, int /*code*/, std::string_view /*message*/) {
+					 PerSocketData* data = ws->getUserData();
+						cout << "closed User id: " << data->user_id << "\n";
+
+					   ws->publish(BROADCAST, status(data, false));  // отключился
+					   activeUsers.erase(data->user_id); // удаление их карты юзера
+					   --n_clients;
+							   }
+				}).listen(9001, [](auto* listen_socket) {
+								   if (listen_socket) {
+									   cout << "Listening on port " << 9001 << "Chat-bot entered the chat! (User № 1) " << endl;
+									   cout << "Chat-bot entered the chat! (User № 1) " << endl;
+									   greeting();
+								   }
+								   else { cout << "Server failed to start :( " << endl; }
+
+					}).run();
+
+			});
+
+
+
+
+
+		});
+
+
+	for_each(threads.begin(), threads.end(), [](auto* thr) {thr->join(); });
 
 }
 
