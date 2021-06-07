@@ -65,3 +65,12 @@ string response(const string& question) {
 	}
 }
 
+
+
+void greeting() {
+
+	int phraseCount = loadPhrases();
+	cout << "Hello, I'm a chat-bot! I can answer " + to_string(phraseCount) + " questions\n";
+}
+
+
