@@ -1,3 +1,10 @@
-hello $ hello human! 
-what is your name $ My name is ROBO-2342!
-what are you doing $ i am answering stoopid questions
+hello $ Hello, dear human!
+hi $ Hey, dude!
+what is your name $ My name is SkillBot.
+who are you $ I am a simple chat-bot.
+how are you doing $ I am great, thanks!
+where do you live $ In the uWebSockets server!
+what were you made for $ For the SkillBox intensive!
+can you learn $ Yes, I can!
+do you enjoy chatting $ Yes, of course I do!
+can you make calls $ No, sadly, I cannot.
