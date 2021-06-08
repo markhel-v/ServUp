@@ -3,6 +3,8 @@
 #include <uwebsockets/App.h>
 #include "ChatBot.h"
 #include <thread>
+#include <format>
+
 
 
 using namespace std;
@@ -44,7 +46,7 @@ string status(PerSocketData* data, bool online) {
 	return request.dump();
 }
 
-void processMessage(UWEBSOCK* ws, std::string_view message, map<int, PerSocketData*>& users, uWS::OpCode opCode) {
+void processMsg(UWEBSOCK* ws, std::string_view message, map<int, PerSocketData*>& users, uWS::OpCode opCode) {
 	PerSocketData* data = ws->getUserData();
 
 	json parsed = json::parse(message);
@@ -102,7 +104,7 @@ int main()
 {
 	PerSocketData bot = { 1, BOT };
 	PerSocketData server  = { 0, SERVER };
-
+    
 	atomic_ulong  latest_id = 10;
 	atomic_int  n_clients = 0;
 	
@@ -128,7 +130,7 @@ int main()
 					   PerSocketData* data = ws->getUserData();
 					   data->user_id = latest_id++;
 					   cout << "User id:" << data->user_id << " connected\n";
-					   cout << "Total users connected  " << ++n_clients << "\n";
+					   cout << "Total users online  " << ++n_clients << "\n";
 
 						   ws->publish(BROADCAST, status(data, true)); // Bcем сообщаем что он подкл
 						   ws->subscribe(BROADCAST);
@@ -137,28 +139,28 @@ int main()
 							   ws->send(status(entry.second, true), uWS::OpCode::TEXT);
 						   }
 
-						   activeUsers[data->user_id] = data;        //   add in map users
+						   activeUsers[data->user_id] = data; //     add in map users 
 
 							   },
 					.message = [&](auto* ws,  std::string_view message, uWS::OpCode opCode) {
 					PerSocketData* data = ws->getUserData();
-					cout << "Message from N " << data->user_id << ": " << message << endl;
-					processMessage(ws,message, activeUsers, opCode);
+				  cout << format("Message from id {}{}! \n", data->user_id, message);
+					 
+					processMsg(ws,message, activeUsers, opCode);
 
 							   },
 
 					.close = [&](auto* ws, int /*code*/, std::string_view /*message*/) {
 					 PerSocketData* data = ws->getUserData();
-						cout << "closed User id: " << data->user_id << "\n";
-
-					   ws->publish(BROADCAST, status(data, false));  //   offline status
-					   activeUsers.erase(data->user_id); // delete user from map
+						cout << format("closed User id:{}\n",data->user_id);
+					   ws->publish(BROADCAST, status(data, false));  //   offline status msg all
+					   activeUsers.erase(data->user_id); // delete users from map
 					   --n_clients;
 							   }
 				}).listen(9001, [](auto* listen_socket) {
 								   if (listen_socket) {
 									   cout << "Thread " << std::this_thread::get_id() << " listening on port " << 9001 << endl;
-									   cout << "Chat-bot entered the chat! (User id: 1) " << endl;
+									   cout << "Chat-bot entered the chat! (id: 1) " << endl;
 									   greeting();
 								   }
 								   else { cout << "Server failed to start :( " << endl; }
