@@ -154,10 +154,6 @@ int main()
 					.message = [&](auto* ws,  std::string_view message, uWS::OpCode opCode) {
 						 PerSocketData* data = ws->getUserData();
 						 
-						 
-						 
-					
-		
 						 cout << format("Message from id {}{}! \n", data->user_id, message);
 				         processMsg(ws,message, activeUsers, opCode);
 
@@ -172,9 +168,10 @@ int main()
 							   }
 				}).listen(9001, [](auto* listen_socket) {
 								   if (listen_socket) {
+									  // greeting();
 									   cout << "Thread " << std::this_thread::get_id() << " listening on port " << 9001 << endl;
 									   cout << "Chat-bot entered the chat! (id: 1) " << endl;
-									   greeting();
+									 
 								   }
 								   else { cout << "Server failed to start :( " << endl; }
 
