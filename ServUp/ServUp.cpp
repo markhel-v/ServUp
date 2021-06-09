@@ -157,9 +157,7 @@ int main()
 						 
 						 
 					
-						 
-						 
-						 ws->publish(BROADCAST, "<" + data->name + "> " + (string)message, opCode, false);
+		
 						 cout << format("Message from id {}{}! \n", data->user_id, message);
 				         processMsg(ws,message, activeUsers, opCode);
 
