@@ -124,7 +124,7 @@ int main()
 				/* Settings */
 				.compression = uWS::SHARED_COMPRESSOR,
 				.maxPayloadLength = 16 * 1024 * 1024,
-				.idleTimeout =  9999,
+				.idleTimeout =  1024,
 				.maxBackpressure = 1 * 1024 * 1024,
 				.closeOnBackpressureLimit = false,
 				.resetIdleTimeoutOnSend = false,
@@ -168,7 +168,7 @@ int main()
 							   }
 				}).listen(9001, [](auto* listen_socket) {
 								   if (listen_socket) {
-									  // greeting();
+									   greeting();
 									   cout << "Thread " << std::this_thread::get_id() << " listening on port " << 9001 << endl;
 									   cout << "Chat-bot entered the chat! (id: 1) " << endl;
 									 

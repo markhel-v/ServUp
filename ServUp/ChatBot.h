@@ -20,9 +20,10 @@ string toLower(string  text)
 }
 
 
+
 int loadPhrases() {
 
-	ifstream phrases("dbase.txt");
+	ifstream phrases("base.txt");
 	string line;
 	int len = 0;
 	while (getline(phrases, line)) {
@@ -35,6 +36,7 @@ int loadPhrases() {
 	}
 	return len;
 }
+
 
 
 string chat_bot(const string& question) {
