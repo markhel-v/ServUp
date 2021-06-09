@@ -46,13 +46,14 @@ string status(PerSocketData* data, bool online) {
 	return request.dump();
 }
 
-void processMsg(UWEBSOCK* ws, std::string_view message, map<int, PerSocketData*>& users, uWS::OpCode opCode) {
+void processMsg(UWEBSOCK* ws, std::string_view message, map<int, PerSocketData*>& users, uWS::OpCode opCode ) {
+	
 	PerSocketData* data = ws->getUserData();
-
+	
 	json parsed = json::parse(message);
 	json response;
 	string command = parsed[COMMAND];
-
+	
 	if (command == PRIVATE_MSG) {
 		int user_id = parsed[USER_ID];
 		string user_msg = parsed[MESSAGE];
@@ -72,6 +73,8 @@ void processMsg(UWEBSOCK* ws, std::string_view message, map<int, PerSocketData*>
 		    response[NAME] = data->name;
 			response[MESSAGE] = user_msg;
 			ws->publish("user_id" + to_string(user_id), response.dump());
+		
+		
 		}
         	else {
 			cout << "Error! There is no user with ID = " << user_id << "!" << endl;
@@ -88,7 +91,7 @@ void processMsg(UWEBSOCK* ws, std::string_view message, map<int, PerSocketData*>
 		if (pos == -1 && user_name.length() <= 255) {
 			data->name = user_name;
 			cout << "User № " << data->user_id << " set his name to " << data->name << endl;
-			ws->publish(BROADCAST, status(data, false));
+			ws->publish(BROADCAST, status(data, false), opCode, false);
 		}
 		else {
 			cout << "This name is not allowed!" << endl;
@@ -98,7 +101,11 @@ void processMsg(UWEBSOCK* ws, std::string_view message, map<int, PerSocketData*>
 			response[MESSAGE] = "Incorrect name!";
 			ws->send(response.dump(), opCode, true);
 		}
+	
+		
 	}
+	
+   
 }
 int main()
 {
@@ -108,7 +115,7 @@ int main()
 	atomic_ulong  latest_id = 10;
 	atomic_int  n_clients = 0;
 	
-	vector<thread*> threads(1); // args threads -->  thread::hardware_concurrency()
+	vector<thread*> threads(thread::hardware_concurrency()); // args threads -->  thread::hardware_concurrency()
 
 	transform(threads.begin(), threads.end(), threads.begin(), [&](auto* thr) {
 		return new thread([&]() {
@@ -117,7 +124,7 @@ int main()
 				/* Settings */
 				.compression = uWS::SHARED_COMPRESSOR,
 				.maxPayloadLength = 16 * 1024 * 1024,
-				.idleTimeout =  1024,
+				.idleTimeout =  9999,
 				.maxBackpressure = 1 * 1024 * 1024,
 				.closeOnBackpressureLimit = false,
 				.resetIdleTimeoutOnSend = false,
@@ -132,9 +139,11 @@ int main()
 					   cout << "User id:" << data->user_id << " connected\n";
 					   cout << "Total users online  " << ++n_clients << "\n";
 
-						   ws->publish(BROADCAST, status(data, true)); // Bcем сообщаем что он подкл
+						   // Bcем сообщаем что он подкл
 						   ws->subscribe(BROADCAST);
 						   ws->subscribe("user_id" + to_string(data->user_id));
+						  
+						   ws->publish(BROADCAST, status(data, true));
 						   for (auto entry : activeUsers) {
 							   ws->send(status(entry.second, true), uWS::OpCode::TEXT);
 						   }
@@ -143,10 +152,16 @@ int main()
 
 							   },
 					.message = [&](auto* ws,  std::string_view message, uWS::OpCode opCode) {
-					PerSocketData* data = ws->getUserData();
-				  cout << format("Message from id {}{}! \n", data->user_id, message);
-					 
-					processMsg(ws,message, activeUsers, opCode);
+						 PerSocketData* data = ws->getUserData();
+						 
+						 
+						 
+					
+						 
+						 
+						 ws->publish(BROADCAST, "<" + data->name + "> " + (string)message, opCode, false);
+						 cout << format("Message from id {}{}! \n", data->user_id, message);
+				         processMsg(ws,message, activeUsers, opCode);
 
 							   },
 
@@ -176,7 +191,9 @@ int main()
 		});
 
 
-	for_each(threads.begin(), threads.end(), [](auto* thr) {thr->join(); });
+	for_each(threads.begin(), threads.end(), [](auto* thr) {
+		thr->join(); 
+	});
 
 }
 
