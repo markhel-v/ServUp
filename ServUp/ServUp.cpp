@@ -4,15 +4,14 @@
 #include "ChatBot.h"
 #include <thread>
 #include <format>
-#include "format"
 #include "guardedMap.h"
 
 
-//////////////////////////////
 
 
 
-using namespace std;
+using namespace std;    
+
 
 
 const string COMMAND = "command";
@@ -33,7 +32,7 @@ const string BOT = "bot";
 
 struct PerSocketData {
 	unsigned long user_id;
-	string name = "NULL";
+	string name = NAME;
 };
 
 guarded_map<int, PerSocketData*>activeUsers;
@@ -51,14 +50,14 @@ string status(PerSocketData* data, bool online) {
 	return request.dump();
 }
 
-void processMsg(UWEBSOCK* ws, std::string_view message,uWS::OpCode opCode) {
-	
+void processMsg(UWEBSOCK* ws, std::string_view message, uWS::OpCode opCode) {
+
 	PerSocketData* data = ws->getUserData();
-	
+
 	json parsed = json::parse(message);
 	json response;
 	string command = parsed[COMMAND];
-	
+
 	if (command == PRIVATE_MSG) {
 		int user_id = parsed[USER_ID];
 		string user_msg = parsed[MESSAGE];
@@ -72,7 +71,7 @@ void processMsg(UWEBSOCK* ws, std::string_view message,uWS::OpCode opCode) {
 			response[MESSAGE] = chat_bot(user_msg);
 			ws->send(response.dump(), opCode, true);
 		}
-		else if (user_id < 10 ) {   //++
+		else if (user_id < 10) {   //++
 			cout << "Error! There is no user with ID = " << user_id << "!" << endl;
 			response[COMMAND] = NOTIFICATION;
 			response[USER_FROM] = 0;
@@ -80,21 +79,21 @@ void processMsg(UWEBSOCK* ws, std::string_view message,uWS::OpCode opCode) {
 			response[MESSAGE] = "User not found!";
 			ws->send(response.dump(), opCode, true);
 		}
-           	else {
+		else {
 			response[COMMAND] = PRIVATE_MSG;
 			response[USER_FROM] = data->user_id;
 			response[NAME] = data->name;
 			response[MESSAGE] = user_msg;
-			ws->publish("user_id" + to_string(user_id), response.dump());
-}
+			ws->publish(USER_ID + to_string(user_id), response.dump());
+		}
 	}
 	if (command == SET_NAME) {
 		string user_name = parsed[NAME];
 		int pos = user_name.find("::");
 		if (pos == -1 && user_name.length() <= 255) {
 			data->name = user_name;
-			cout << "User № " << data->user_id << " set his name to " << data->name << endl;
-			ws->publish(BROADCAST, status(data, false), opCode, false);
+			cout << USER_ID << data->user_id << " set his name to " << data->name << endl;
+			ws->publish(BROADCAST, status(data, false));
 		}
 		else {
 			cout << "This name is not allowed!" << endl;
@@ -104,81 +103,81 @@ void processMsg(UWEBSOCK* ws, std::string_view message,uWS::OpCode opCode) {
 			response[MESSAGE] = "Incorrect name!";
 			ws->send(response.dump(), opCode, true);
 		}
-	
-		
+
+
 	}
-	
-   
+
+
 }
 int main()
 {
 	PerSocketData bot = { 1, BOT };
-	PerSocketData server  = { 0, SERVER };
-    
+	PerSocketData server = { 0, SERVER };
+
 	atomic_ulong  latest_id = 10;
 	atomic_int  n_clients = 0;
-	
-	vector<thread*> threads(thread::hardware_concurrency()); // args threads -->  thread::hardware_concurrency()
+
+	vector<thread*> threads(thread::hardware_concurrency());
 
 	transform(threads.begin(), threads.end(), threads.begin(), [&](auto* thr) {
 		return new thread([&]() {
-			
-        uWS::App().ws<PerSocketData>("/*", {          // /* ws->getUserData returns one of these */
-				/* Settings */
-				.compression = uWS::SHARED_COMPRESSOR,
-				.maxPayloadLength = 16 * 1024 * 1024,
-				.idleTimeout =  1024,
-				.maxBackpressure = 1 * 1024 * 1024,
-				.closeOnBackpressureLimit = false,
-				.resetIdleTimeoutOnSend = false,
-				.sendPingsAutomatically = true,
 
-				/* Handlers */
+			uWS::App().ws<PerSocketData>("/*", {          // /* ws->getUserData returns one of these */
+					/* Settings */
+					.compression = uWS::SHARED_COMPRESSOR,
+					.maxPayloadLength = 16 * 1024 * 1024,
+					.idleTimeout = 1024,
+					.maxBackpressure = 1 * 1024 * 1024,
+					.closeOnBackpressureLimit = false,
+					.resetIdleTimeoutOnSend = false,
+					.sendPingsAutomatically = true,
 
-					.upgrade = nullptr,
-					.open = [&](auto* ws) {
-					   PerSocketData* data = ws->getUserData();
-					   data->user_id = latest_id++;
-					   cout << "User id:" << data->user_id << " connected\n";
-					   cout << "Total users online  " << ++n_clients << "\n";
-					   // Bcем сообщаем что он подкл
+					/* Handlers */
 
-					   ws->publish(BROADCAST, status(data, true));
-					   
-					        ws->subscribe(BROADCAST);
-						   ws->subscribe("user_id" + to_string(data->user_id));
-						  
-						 // cообщаем ноBому юзеру о уже подключенных юзерах  
-						   for (auto entry : activeUsers.getNames()) {
-							   ws->send(entry,uWS::OpCode::TEXT);
-						   }
+						.upgrade = nullptr,
+						.open = [&](auto* ws) {
+						   PerSocketData* data = ws->getUserData();
+						   data->user_id = latest_id++;
+						   cout << "User id:" << data->user_id << " connected\n";
+						   cout << "Total users online :" << ++n_clients << "\n";
+						   // Bcем сообщаем что он подкл
 
-						   activeUsers.set(data->user_id, data);       //add user in map  
+						   ws->publish(BROADCAST, status(data, true));
 
-							   },
-					.message = [&](auto* ws,  std::string_view message, uWS::OpCode opCode) {
-						 PerSocketData* data = ws->getUserData();
-						 
-						 cout << format("Message from id {}{}! \n", data->user_id, message);
-				         processMsg(ws, message, opCode);
+							   ws->subscribe(BROADCAST);
+							   ws->subscribe(USER_ID + to_string(data->user_id));
 
-							   },
+							   // cообщаем ноBому юзеру о уже подключенных юзерах  
+								 for (auto entry : activeUsers.getNames()) {
+								  ws->send(entry,uWS::OpCode::TEXT);
+								 }
 
-					.close = [&](auto* ws, int /*code*/, std::string_view /*message*/) {
-					 PerSocketData* data = ws->getUserData();
-						cout << format("closed User id:{}\n",data->user_id);
-					   ws->publish(BROADCAST, status(data, false));  //   offline status msg all
-					    activeUsers.erase(data->user_id); // delete users from map
-					   --n_clients;
-							   }
+								 activeUsers.set(data->user_id, data);       //add user in map  
+
+									 },
+						  .message = [&](auto* ws,  std::string_view message, uWS::OpCode opCode) {
+							   PerSocketData* data = ws->getUserData();
+
+							   cout << format("Message from id {}{}! \n", data->user_id, message);
+							   processMsg(ws, message, opCode);
+
+									 },
+
+						  .close = [&](auto* ws, int /*code*/, std::string_view /*message*/) {
+						   PerSocketData* data = ws->getUserData();
+							  cout << format("closed User id:{}\n",data->user_id);
+							 ws->publish(BROADCAST, status(data, false));  //   offline status msg all
+							  activeUsers.erase(data->user_id); // delete users from map
+							 --n_clients;
+									 }
 				}).listen(9001, [](auto* listen_socket) {
-								   if (listen_socket) {
-									   greeting();
-									   cout << "Thread " << std::this_thread::get_id() << " listening on port " << 9001 << endl;
-									   cout << "Chat-bot entered the chat! (id: 1) " << endl;
-									 
-								   }
-								   else { cout << "Server failed to start :( " << endl; }
+										 if (listen_socket) {
+											 greeting();
+											 cout << "Thread " << std::this_thread::get_id() << " listening on port " << 9001 << endl;
+											 cout << "Chat-bot entered the chat! (id: 1) " << endl;
+
+										 }
+										 else { cout << "Server failed to start :( " << endl; }
 
 					}).run();
 
@@ -192,8 +191,8 @@ int main()
 
 
 	for_each(threads.begin(), threads.end(), [](auto* thr) {
-		thr->join(); 
-	});
+		thr->join();
+		});
 
 }
 
