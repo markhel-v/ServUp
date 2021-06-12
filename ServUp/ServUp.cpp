@@ -10,7 +10,7 @@
 
 
 
-using namespace std;    
+using namespace std ;    
 
 
 
@@ -30,6 +30,7 @@ const string SERVER = "server";
 const string BOT = "bot";
 
 
+
 struct PerSocketData {
 	unsigned long user_id;
 	string name = NAME;
@@ -46,7 +47,7 @@ string status(PerSocketData* data, bool online) {
 	request[COMMAND] = STATUS;
 	request[NAME] = data->name;
 	request[USER_ID] = data->user_id;
-	request[ONLINE] = true;
+	request[ONLINE] = online;
 	return request.dump();
 }
 
@@ -56,20 +57,20 @@ void processMsg(UWEBSOCK* ws, std::string_view message, uWS::OpCode opCode) {
 
 	json parsed = json::parse(message);
 	json response;
-	string command = parsed[COMMAND];
+ 
 
-	if (command == PRIVATE_MSG) {
-		int user_id = parsed[USER_ID];
-		string user_msg = parsed[MESSAGE];
+	if (parsed[COMMAND] == PRIVATE_MSG) {
+		const int user_id = parsed[USER_ID];
+		const string user_msg = parsed[MESSAGE];
 
 
 		if (user_id == 1) {
-
+			
 			response[COMMAND] = PRIVATE_MSG;
 			response[USER_FROM] = user_id;
 			response[NAME] = BOT;
-			response[MESSAGE] = chat_bot(user_msg);
-			ws->send(response.dump(), opCode, true);
+			response[MESSAGE] =   chat_bot(user_msg);              
+			ws->send(response.dump(), uWS::OpCode::TEXT, true);
 		}
 		else if (user_id < 10) {   //++
 			cout << "Error! There is no user with ID = " << user_id << "!" << endl;
@@ -77,7 +78,7 @@ void processMsg(UWEBSOCK* ws, std::string_view message, uWS::OpCode opCode) {
 			response[USER_FROM] = 0;
 			response[NAME] = SERVER;
 			response[MESSAGE] = "User not found!";
-			ws->send(response.dump(), opCode, true);
+			ws->send(response.dump(), uWS::OpCode::TEXT, true);
 		}
 		else {
 			response[COMMAND] = PRIVATE_MSG;
@@ -87,13 +88,12 @@ void processMsg(UWEBSOCK* ws, std::string_view message, uWS::OpCode opCode) {
 			ws->publish(USER_ID + to_string(user_id), response.dump());
 		}
 	}
-	if (command == SET_NAME) {
+	if (parsed[COMMAND] == SET_NAME) {
 		string user_name = parsed[NAME];
 		int pos = user_name.find("::");
 		if (pos == -1 && user_name.length() <= 255) {
 			data->name = user_name;
-			cout << USER_ID << data->user_id << " set his name to " << data->name << endl;
-			ws->publish(BROADCAST, status(data, false));
+			ws->publish(BROADCAST, status(data, true));
 		}
 		else {
 			cout << "This name is not allowed!" << endl;
@@ -138,15 +138,13 @@ int main()
 						.open = [&](auto* ws) {
 						   PerSocketData* data = ws->getUserData();
 						   data->user_id = latest_id++;
-						   cout << "User id:" << data->user_id << " connected\n";
-						   cout << "Total users online :" << ++n_clients << "\n";
-						   // Bcем сообщаем что он подкл
-
-						   ws->publish(BROADCAST, status(data, true));
-
+		                cout<<format("User id:{} connected\nTotal users online:{}\n",data->user_id, (++n_clients));
+			 
+                                
 							   ws->subscribe(BROADCAST);
 							   ws->subscribe(USER_ID + to_string(data->user_id));
-
+							   // Bcем сообщаем что он подкл
+							   ws->publish(BROADCAST, status(data, true));
 							   // cообщаем ноBому юзеру о уже подключенных юзерах  
 								 for (auto entry : activeUsers.getNames()) {
 								  ws->send(entry,uWS::OpCode::TEXT);
@@ -158,17 +156,17 @@ int main()
 						  .message = [&](auto* ws,  std::string_view message, uWS::OpCode opCode) {
 							   PerSocketData* data = ws->getUserData();
 
-							   cout << format("Message from id {}{}! \n", data->user_id, message);
-							   processMsg(ws, message, opCode);
+							   cout << format("Message from id {}{} \n", data->user_id, message);
+							   processMsg(ws, message, uWS::OpCode::TEXT);
 
 									 },
 
 						  .close = [&](auto* ws, int /*code*/, std::string_view /*message*/) {
 						   PerSocketData* data = ws->getUserData();
 							  cout << format("closed User id:{}\n",data->user_id);
-							 ws->publish(BROADCAST, status(data, false));  //   offline status msg all
+							  ws->publish(BROADCAST, status(data, false));  //   offline status msg all
 							  activeUsers.erase(data->user_id); // delete users from map
-							 --n_clients;
+							  --n_clients;
 									 }
 				}).listen(9001, [](auto* listen_socket) {
 										 if (listen_socket) {
