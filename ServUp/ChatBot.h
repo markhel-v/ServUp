@@ -37,8 +37,6 @@ int loadPhrases() {
 	return len;
 }
 
-
-
 string chat_bot(const string& question) {
 
 	string query = toLower(question);
@@ -57,7 +55,7 @@ string chat_bot(const string& question) {
 	return answer;
 }
 
-string response(const string& question) {
+string responseBot(const string& question) {
 
 	for (auto entry : dbase) {
 		regex pattern(".*" + entry.first + ".*");

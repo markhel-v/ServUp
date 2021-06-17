@@ -5,122 +5,27 @@
 #include <thread>
 #include <format>
 #include "guardedMap.h"
+#include "parseMsg.h" 
+
+ using namespace std ;    
 
 
-
-
-
-using namespace std ;    
-
-
-
-const string COMMAND = "command";
-const string USER_ID = "user_id";
-const string MESSAGE = "message";
-const string USER_FROM = "user_from";
-const string PRIVATE_MSG = "private_msg";
-const string SET_NAME = "set_name";
-const string NAME = "name";
-const string STATUS = "status";
-const string ONLINE = "online";
-const string BROADCAST = "broadcast";
-const string TRAIN = "train";
-const string NOTIFICATION = "notification";
-const string SERVER = "server";
-const string BOT = "bot";
-
-
-
-struct PerSocketData {
-	unsigned long user_id;
-	string name = NAME;
-};
-
-guarded_map<int, PerSocketData*>activeUsers;
-
-
-typedef uWS::WebSocket<false, true, PerSocketData> UWEBSOCK;
-
-
-string status(PerSocketData* data, bool online) {
-	json request;
-	request[COMMAND] = STATUS;
-	request[NAME] = data->name;
-	request[USER_ID] = data->user_id;
-	request[ONLINE] = online;
-	return request.dump();
-}
-
-void processMsg(UWEBSOCK* ws, std::string_view message, uWS::OpCode opCode) {
-
-	PerSocketData* data = ws->getUserData();
-
-	json parsed = json::parse(message);
-	json response;
  
 
-	if (parsed[COMMAND] == PRIVATE_MSG) {
-		const int user_id = parsed[USER_ID];
-		const string user_msg = parsed[MESSAGE];
-
-
-		if (user_id == 1) {
-			
-			response[COMMAND] = PRIVATE_MSG;
-			response[USER_FROM] = user_id;
-			response[NAME] = BOT;
-			response[MESSAGE] =   chat_bot(user_msg);              
-			ws->send(response.dump(), uWS::OpCode::TEXT, true);
-		}
-		else if (user_id < 10) {   //++
-			cout << "Error! There is no user with ID = " << user_id << "!" << endl;
-			response[COMMAND] = NOTIFICATION;
-			response[USER_FROM] = 0;
-			response[NAME] = SERVER;
-			response[MESSAGE] = "User not found!";
-			ws->send(response.dump(), uWS::OpCode::TEXT, true);
-		}
-		else {
-			response[COMMAND] = PRIVATE_MSG;
-			response[USER_FROM] = data->user_id;
-			response[NAME] = data->name;
-			response[MESSAGE] = user_msg;
-			ws->publish(USER_ID + to_string(user_id), response.dump());
-		}
-	}
-	if (parsed[COMMAND] == SET_NAME) {
-		string user_name = parsed[NAME];
-		int pos = user_name.find("::");
-		if (pos == -1 && user_name.length() <= 255) {
-			data->name = user_name;
-			ws->publish(BROADCAST, status(data, true));
-		}
-		else {
-			cout << "This name is not allowed!" << endl;
-			response[COMMAND] = NOTIFICATION;
-			response[USER_FROM] = 0;
-			response[NAME] = SERVER;
-			response[MESSAGE] = "Incorrect name!";
-			ws->send(response.dump(), opCode, true);
-		}
-
-
-	}
-
-
-}
 int main()
 {
-	PerSocketData bot = { 1, BOT };
-	PerSocketData server = { 0, SERVER };
+	PerSocketData bot { 1, BOT };
+	PerSocketData server { 0, SERVER };
 
-	atomic_ulong  latest_id = 10;
-	atomic_int  n_clients = 0;
 
-	vector<thread*> threads(thread::hardware_concurrency());
+
+	atomic_ulong  latest_id = 10 ;
+	atomic_int  n_clients{ 0 };
+
+	vector<thread*> threads{ thread::hardware_concurrency() };
 
 	transform(threads.begin(), threads.end(), threads.begin(), [&](auto* thr) {
-		return new thread([&]() {
+		return new thread([&latest_id, &n_clients]() {
 
 			uWS::App().ws<PerSocketData>("/*", {          // /* ws->getUserData returns one of these */
 					/* Settings */
@@ -138,16 +43,16 @@ int main()
 						.open = [&](auto* ws) {
 						   PerSocketData* data = ws->getUserData();
 						   data->user_id = latest_id++;
-		                cout<<format("User id:{} connected\nTotal users online:{}\n",data->user_id, (++n_clients));
+		                 cout<<format("User id:{} connected\nTotal users online:{}\n",data->user_id,(++n_clients));
 			 
-                                
+						 // Bcем сообщаем что он подкл
+						 ws->publish(BROADCAST, status(data, true));
 							   ws->subscribe(BROADCAST);
 							   ws->subscribe(USER_ID + to_string(data->user_id));
-							   // Bcем сообщаем что он подкл
-							   ws->publish(BROADCAST, status(data, true));
+							   
 							   // cообщаем ноBому юзеру о уже подключенных юзерах  
 								 for (auto entry : activeUsers.getNames()) {
-								  ws->send(entry,uWS::OpCode::TEXT);
+								  ws->send(entry, uWS::OpCode::TEXT);
 								 }
 
 								 activeUsers.set(data->user_id, data);       //add user in map  
@@ -155,17 +60,25 @@ int main()
 									 },
 						  .message = [&](auto* ws,  std::string_view message, uWS::OpCode opCode) {
 							   PerSocketData* data = ws->getUserData();
-
-							   cout << format("Message from id {}{} \n", data->user_id, message);
-							   processMsg(ws, message, uWS::OpCode::TEXT);
+						       cout << format("Message from id {}{} \n", data->user_id, message);
+							   
+							   json parsed = json::parse(message);
+							   if (parsed.find(USER_ID) != parsed.end()) {
+								   if (parsed.at(USER_ID) == id_BOT)
+									   chatBotMessage(ws, parsed);
+							   }
+							   
+							   if (parsed.find(COMMAND) != parsed.end())
+							   commandRouter(ws, message, uWS::OpCode::TEXT);
 
 									 },
 
-						  .close = [&](auto* ws, int /*code*/, std::string_view /*message*/) {
+						  .close = [ &](auto* ws, int /*code*/, std::string_view /*message*/) {
 						   PerSocketData* data = ws->getUserData();
 							  cout << format("closed User id:{}\n",data->user_id);
 							  ws->publish(BROADCAST, status(data, false));  //   offline status msg all
 							  activeUsers.erase(data->user_id); // delete users from map
+							 
 							  --n_clients;
 									 }
 				}).listen(9001, [](auto* listen_socket) {

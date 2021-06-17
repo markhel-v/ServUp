@@ -143,6 +143,11 @@
   <ItemGroup>
     <ClCompile Include="ServUp.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ChatBot.h" />
+    <ClInclude Include="guardedMap.h" />
+    <ClInclude Include="parseMsg.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
