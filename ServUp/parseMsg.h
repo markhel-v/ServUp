@@ -88,7 +88,7 @@ void SetName(UWEBSOCK* ws,json parsed, PerSocketData* data) {
 	 
 
 }
-auto createPrivateMessage(int id, string msg, string name) {
+auto createPrivateMessage(unsigned long id, string msg, string name) {
 	json response;
 	response[COMMAND] = PRIVATE_MSG;
 	response[USER_FROM] = id;
@@ -98,34 +98,41 @@ auto createPrivateMessage(int id, string msg, string name) {
 }
 
 
-int parsePrivateId(json msg) {
-
+unsigned long parsePrivateId(json msg) {
+	///прежде чем  "читать значение" в формате JSON, убедитесь , 
+	//что его соответствующее key существует find(key)
 	auto it = msg.find(USER_ID);
-
-	if (it != msg.end())
+	
+	if (it != msg.end() && it->is_number_unsigned())
 	{
-		cout << "Field USER_ID found!" << endl;
-		// ПРИМЕЧАНИЕ: API гарантирует, что Key{JS} является строкой (в противном случае 
+
+		// ПРИМЕЧАНИЕ: API гарантирует, что Key{JS} является числом, (в противном случае 
 		// произойдет сбой). 
 
-		return  it->get <int>();
+		return  it->get <unsigned long>();
 	}
      
-	else  cout << "Field USER_ID not found!" << endl;
+	else  cout << "error:key USER_ID: not found or value type incorect!" << endl;
 }
 
- 
 
-string parsePrivateMessage(json msg) {              
-	if (msg.find(MESSAGE) != msg.end()) {
-		cout << "Field MESSAGE found!" << endl;
 
-		return  msg.at(MESSAGE);
+string parsePrivateMessage(json msg) {
+	///прежде чем  "читать значение" в формате JSON, убедитесь , 
+	//что его соответствующее key существует find(key)
+	auto it = msg.find(MESSAGE);
+
+	if (it != msg.end() && it->is_string() )
+	{
+
+		// ПРИМЕЧАНИЕ: API гарантирует, что Key{JS} является cтрокой, (в противном случае 
+		// произойдет сбой). 
+		return  it->get <string>();
+		 
 	}
-	else  cout << "Field MESSAGE not found!" << endl;
+
+	else  cout << "error:key MESSAGE: not found or value type incorect!" << endl;
 }
-
-
 
 
 void chatBotMessage(UWEBSOCK* ws, json parsed) {
@@ -147,7 +154,7 @@ void  commandRouter(UWEBSOCK* ws, std::string_view message, uWS::OpCode opCode) 
 	json parsed = json::parse(message);
     
 	   if (parsed.at(COMMAND) == PRIVATE_MSG) {
-			int id = parsePrivateId(parsed);
+		    unsigned long id = parsePrivateId(parsed);
 			string user_msg = parsePrivateMessage(parsed);
 			json response = createPrivateMessage(data->user_id, user_msg, data->name);
 			ws->publish(USER_ID + to_string(id), response.dump());
